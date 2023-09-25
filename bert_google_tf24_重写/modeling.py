@@ -66,7 +66,7 @@ def embedding_postprocessor(input_tensor,
       Args:
         input_tensor: float Tensor of shape [batch_size, seq_length,
           embedding_size].
-        use_token_type: bool. Whether to add embeddings for `token_type_ids`.
+        use_token_type: bool. Whether to add embeddings for `token_type_ids`. 论文中的segment embedding
         token_type_ids: (optional) int32 Tensor of shape [batch_size, seq_length].
           Must be specified if `use_token_type` is True.
         token_type_vocab_size: int. The vocabulary size of `token_type_ids`.
@@ -92,6 +92,37 @@ def embedding_postprocessor(input_tensor,
     batch_size = input_shape[0]
     sequence_length = input_shape[1]
     width = input_shape[2]
+    output = input_tensor  # [batch_size, seq_length,embedding_size]
+
+    if use_token_type:
+        if token_type_ids is None:  # [batch_size, seq_length]
+            raise ValueError("`token_type_ids` must be specified if"
+                             "`use_token_type` is True.")
+        token_type_table = tf.Variable(
+            initial_value=tf.random.truncated_normal(shape=[token_type_vocab_size, width], stddev=0.02),
+            name=token_type_embedding_name,
+            shape=[token_type_vocab_size, width]
+        )
+        # This vocab will be small so we always do one-hot here, since it is always
+        # faster for a small vocabulary.
+        flat_token_type_ids = tf.reshape(token_type_ids, [-1])  # [batch_size* seq_length]
+        one_hot_ids = tf.one_hot(flat_token_type_ids, depth=token_type_vocab_size)  # [batch_size* seq_length,
+        # token_type_vocab_size]
+        token_type_embedding = tf.matmul(one_hot_ids, token_type_table)
+        token_type_embedding = tf.reshape(token_type_embedding, shape=[batch_size,sequence_length,width])  # [
+        # batch_size,sequence_length,width]
+        output += token_type_embedding
+
+    if use_position_embeddings:
+        assert_op = tf.debugging.assert_less_equal(sequence_length, max_position_embeddings)  # # 如果seq_length
+        # >max_position_embeddings就抛出异常
+        # tf.control_dependencies是一个上下文管理器,确保assert_op先计算完成
+        with tf.control_dependencies([assert_op]):
+            full_position_embedding = tf.Variable(
+                initial_value=tf.random.truncated_normal(shape=[max_position_embeddings,width],stddev=0.02),
+                shape=[max_position_embeddings,width],
+                name=position_embedding_name
+            )
 
     return
 
