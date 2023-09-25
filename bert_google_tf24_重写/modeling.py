@@ -122,7 +122,7 @@ def embedding_postprocessor(input_tensor,
                 initial_value=tf.random.truncated_normal(shape=[max_position_embeddings,width],stddev=0.02),
                 shape=[max_position_embeddings,width],
                 name=position_embedding_name
-            )
+            )#
 
     return
 
